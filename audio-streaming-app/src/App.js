@@ -26,8 +26,7 @@
 import React, { useState, useRef } from 'react';
 import SimplePeer from 'simple-peer';
 import AV from './av';
-
-
+import './styles.css'
 
 function App() {
   const [stream, setStream] = useState(null);
@@ -43,7 +42,6 @@ function App() {
       setStream(stream);
       myVideoRef.current.srcObject = stream;
 
-      // Create an AudioContext and setup nodes for filtering
       audioContext = new (window.AudioContext || window.webkitAudioContext)();
       const source = audioContext.createMediaStreamSource(stream);
       gainNode = audioContext.createGain();
@@ -53,7 +51,6 @@ function App() {
       filterNode.type = 'lowpass';
       filterNode.frequency.value = 200;
 
-      // Conditionally apply filter
       if (isFilterOn) {
         source.connect(gainNode).connect(filterNode).connect(audioContext.destination);
       } else {
@@ -72,7 +69,6 @@ function App() {
     });
 
     peer.on('signal', (data) => {
-      // Send this data to the peer through a signaling server or similar
       console.log('SIGNAL', JSON.stringify(data));
     });
 
@@ -91,7 +87,6 @@ function App() {
       console.error("Invalid signal data format or error in signaling:", error);
     }
   };
-  
 
   const toggleFilter = () => {
     setIsFilterOn(!isFilterOn);
@@ -105,21 +100,25 @@ function App() {
   };
 
   return (
-    <div>
-      <h1>Audio Streaming App</h1>
-      <button onClick={startStreaming}>Start Audio</button>
-      <button onClick={connectToPeer}>Connect to Peer</button>
-      <audio ref={myVideoRef} autoPlay />
-      <audio ref={peerVideoRef} autoPlay />
+    <div className="app-container">
+      <h1>🎶 Audio Streaming App 🎶</h1>
+      <div className="buttons-container">
+        <button onClick={startStreaming}>🎤 Start Audio</button>
+        <button onClick={connectToPeer}>🔗 Connect to Peer</button>
+        <button onClick={toggleFilter}>
+          {isFilterOn ? '🎚️ Turn Filter Off' : '🎛️ Turn Filter On'}
+        </button>
+      </div>
+      <div className="audio-container">
+        <audio ref={myVideoRef} autoPlay />
+        <audio ref={peerVideoRef} autoPlay />
+      </div>
       <textarea
         placeholder="Paste signal data here"
         onChange={(e) => handleSignalData(e.target.value)}
+        className="signal-input"
       />
-      <button onClick={toggleFilter}>
-        {isFilterOn ? 'Turn Filter Off' : 'Turn Filter On'}
-      </button>
-        {/* Insert the AudioVisualizer here */}
-        {audioContext && <AV audioContext={audioContext} />}
+      {audioContext && <AV audioContext={audioContext} />}
     </div>
   );
 }

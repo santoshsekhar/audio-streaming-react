@@ -1,4 +1,5 @@
-import React, { useEffect, useRef } from 'react';
+ import React, { useEffect, useRef } from 'react';
+
 
 function AV({ audioContext }) {
   const canvasRef = useRef(null);
@@ -21,8 +22,15 @@ function AV({ audioContext }) {
         analyser.getByteTimeDomainData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+        // Create a gradient for the waveform color
+        const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
+        gradient.addColorStop(0, '#ff00ff');
+        gradient.addColorStop(0.5, '#00ffff');
+        gradient.addColorStop(1, '#00ff00');
+
         ctx.lineWidth = 2;
-        ctx.strokeStyle = '#00f';
+        ctx.strokeStyle = gradient;
+
         ctx.beginPath();
         const sliceWidth = (canvas.width * 1.0) / bufferLength;
         let x = 0;
@@ -48,7 +56,9 @@ function AV({ audioContext }) {
     }
   }, [audioContext]);
 
-  return <canvas ref={canvasRef} width="600" height="200" />;
+  return <canvas ref={canvasRef} width="800" height="300" />;
 }
 
 export default AV;
+
+
