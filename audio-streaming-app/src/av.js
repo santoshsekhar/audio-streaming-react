@@ -1,7 +1,8 @@
- import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef } from 'react';
 
 
 function AV({ audioContext }) {
+  //AV component for visualizing audio data as a waveform
   const canvasRef = useRef(null);
   const analyserRef = useRef(null);
 
@@ -11,18 +12,19 @@ function AV({ audioContext }) {
       const ctx = canvas.getContext('2d');
 
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
+      analyser.fftSize = 2048; 
       const bufferLength = analyser.frequencyBinCount;
       const dataArray = new Uint8Array(bufferLength);
       analyserRef.current = analyser;
 
       const drawWaveform = () => {
+        //Function to draw the waveform on the canvas
         requestAnimationFrame(drawWaveform);
 
         analyser.getByteTimeDomainData(dataArray);
         ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Create a gradient for the waveform color
+        //Color gradient for the waveform
         const gradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height);
         gradient.addColorStop(0, '#ff00ff');
         gradient.addColorStop(0.5, '#00ffff');
@@ -36,6 +38,7 @@ function AV({ audioContext }) {
         let x = 0;
 
         for (let i = 0; i < bufferLength; i++) {
+          //loop through the audio data and creating the waveform shape
           const v = dataArray[i] / 128.0;
           const y = (v * canvas.height) / 2;
 
@@ -60,5 +63,4 @@ function AV({ audioContext }) {
 }
 
 export default AV;
-
 
