@@ -11,6 +11,7 @@
     "react-dom": "^18.3.1",
     "react-scripts": "^3.0.1",
     "simple-peer": "^9.11.1",
+    "socket.io-client": "^4.8.0",
     "styled-components": "^6.1.13",
     "web-vitals": "^4.2.3"
   },
@@ -40,8 +41,5 @@
   },
   "browser": {
     "process": false
-  },
-  "devDependencies": {
-    
   }
 }

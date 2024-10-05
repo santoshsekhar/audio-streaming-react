@@ -3,6 +3,10 @@ import React, { useState, useRef, useEffect } from 'react';
 import SimplePeer from 'simple-peer';
 import AV from './av';
 import './styles.css'
+import io from 'socket.io-client';
+
+const socket = io('http://localhost:3000');  // Connect to your signaling server
+
 
 function App() {
   const [stream, setStream] = useState(null);
@@ -55,12 +59,9 @@ function App() {
       } else {
         source.connect(audioContext.destination);
       }
-    } catch (err) {
-      console.error('Error accessing media devices.', err);
-    }
-  };
+    
 
-  const connectToPeer = () => {  
+  
     //connects to peer using WebRTC and streams audio
     const peer = new SimplePeer({
       initiator: true,
@@ -70,7 +71,9 @@ function App() {
 
     peer.on('signal', (data) => { 
       //Exchange signal data for peer
-      console.log('SIGNAL', JSON.stringify(data)); 
+     // console.log('SIGNAL', JSON.stringify(data)); 
+     console.log('Sending signal data: ', data);
+     socket.emit('signal',data);
     });
 
     peer.on('stream', (stream) => {
@@ -79,7 +82,20 @@ function App() {
     });
 
     peerRef.current = peer;
-  };
+  }
+catch (err) {
+  console.error('Error accessing media devices.', err);
+}
+};
+
+ // Connect to peer using signaling server
+ const connectToPeer = () => {
+  if (!peerRef.current) {
+    console.error('No peer reference available');
+    return;
+  }
+  console.log('Connecting to peer...');
+};
 
   const handleSignalData = (signalData) => {
     //handles incoming signaling data for peer connection
@@ -118,6 +134,16 @@ function App() {
     //fetch audio input and output devices on the mount 
     getDevices();
   }, []);
+
+  //handle incoming singal data fromthe server and pass it to peer
+  useEffect(() =>{
+    socket.on('signal',(data) =>{
+      console.log('Received singal data from server:', data);
+      if(peerRef.current){
+        peerRef.current.signal(data);
+      }
+    })
+  },[]);
 
   return (
     <div className="app-container">
