@@ -5,7 +5,7 @@ import AV from './av';
 import './styles.css'
 import io from 'socket.io-client';
 
-const socket = io('http://localhost:3000');  // Connect to your signaling server
+const socket = io('http://localhost:3001');  // Connect to your signaling server
 
 
 function App() {

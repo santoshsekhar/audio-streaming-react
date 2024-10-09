@@ -7,7 +7,7 @@ const app = express();
 const server = http.createServer(app);
 const io = socketIo(server, {
   cors: {
-    origin: "http://localhost:3002",  // Allow requests from this origin (React app)
+    origin: "http://localhost:3000",  // Allow requests from this origin (React app)
     methods: ["GET", "POST"],  // Allow specific HTTP methods
     credentials: true
   }
@@ -15,7 +15,7 @@ const io = socketIo(server, {
 
 // Use CORS
 app.use(cors({
-  origin: "http://localhost:3002",  // Allow requests from this origin
+  origin: "http://localhost:3000",  // Allow requests from this origin
   methods: ["GET", "POST"],
   credentials: true
 }));
@@ -36,7 +36,7 @@ io.on('connection', (socket) => {
   });
 });
 
-const PORT = 3000;
+const PORT = 3001;
 server.listen(PORT, () => {
   console.log(`Signaling server running on http://localhost:${PORT}`);
 });
