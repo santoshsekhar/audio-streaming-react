@@ -11,6 +11,7 @@ const socket = io('http://localhost:3001');  // Connect to your signaling server
 function App() {
   const [stream, setStream] = useState(null);
   const [isFilterOn, setIsFilterOn] = useState(false);
+  const [signalData, setSignalData] = useState([]);
   const myVideoRef = useRef();
   const peerVideoRef = useRef();
   const peerRef = useRef();
@@ -73,6 +74,7 @@ function App() {
       //Exchange signal data for peer
      // console.log('SIGNAL', JSON.stringify(data)); 
      console.log('Sending signal data: ', data);
+    // setSignalData(prevData => [...prevData, data]);
      socket.emit('signal',data);
     });
 
@@ -97,19 +99,56 @@ catch (err) {
   console.log('Connecting to peer...');
 };
 
-  const handleSignalData = (signalData) => {
-    //handles incoming signaling data for peer connection
-    try {
-      const parsedSignalData = JSON.parse(signalData);
-      peerRef.current.signal(parsedSignalData);
-    } catch (error) {
-      console.error("Invalid signal data format or error in signaling:", error);
+  
+
+  useEffect(() =>{
+    console.log("registering socket event listener");
+    const handleSignal = (data) =>{
+      console.log("received signal data from server", data);
+      setSignalData(prevData => [...prevData,data]);
+    };
+    socket.on('signal', handleSignal);
+    return () =>{
+      console.log("cleaning up socket event listener");
+      socket.off('signal', handleSignal)
     }
+    // socket.on('signal', (data) =>{
+    //   console.log('Received signa; data from server: ', data);
+    //   setSignalData(prevData => [...prevData,data]);
+    // })
+  },[]);
+
+  const connectToSelectedSignal = (signal) =>{
+    console.log('connecting to selected signal...');
+    if(peerRef.current){
+      peerRef.current.signal(signal);
+    }else{
+       // Create a new peer if none exists (for non-initiators)
+      const peer = new SimplePeer({
+        initiator: false,
+        trickle:false,
+      });
+      peer.on('signal', (data) =>{
+        socket.emit('signal', data);// Send signal data back to the server
+      });
+      peer.on('stream', (remoteStream) =>{
+        peerVideoRef.current.srcObject = remoteStream;
+      });
+      peer.signal(signal);// Connect to the signal selected from the dropdown
+      peerRef.current =peer;
+    }
+    
+    //peerRef.current.signal(signal);
   };
 
   const toggleFilter = () => {
     //toggle filter (gain + frequency)
     setIsFilterOn(!isFilterOn);
+    const filterSignalData = {
+      type: 'filter-toggle',
+      filterState: !isFilterOn,
+    };
+    socket.emit('signal', filterSignalData);// Emit signal with filter state
     if (audioContext && stream) {
       if (isFilterOn) {
         audioContext.close();
@@ -136,14 +175,39 @@ catch (err) {
   }, []);
 
   //handle incoming singal data fromthe server and pass it to peer
-  useEffect(() =>{
-    socket.on('signal',(data) =>{
-      console.log('Received singal data from server:', data);
-      if(peerRef.current){
-        peerRef.current.signal(data);
+  // useEffect(() =>{
+  //   socket.on('signal',(data) =>{
+  //     console.log('Received singal data from server:', data);
+  //     if(peerRef.current){
+  //       peerRef.current.signal(data);
+  //     }
+  //   })
+  // },[]);
+//------------------
+  // const handleSignalData = (signalData) => {
+  //   //handles incoming signaling data for peer connection
+  //   try {
+  //     const parsedSignalData = JSON.parse(signalData);
+  //     con
+  //     peerRef.current.signal(parsedSignalData);
+  //   } catch (error) {
+  //     console.error("Invalid signal data format or error in signaling:", error);
+  //   }
+  // };
+
+  const handleSignalData = (signalString) => {
+    try {
+      const parsedSignal = JSON.parse(signalString);
+      console.log("Parsed signal data from textarea:", parsedSignal);
+      if (peerRef.current) {
+        peerRef.current.signal(parsedSignal);  // Use the signal to connect to the peer
+      } else {
+        console.error("No peer connection found");
       }
-    })
-  },[]);
+    } catch (error) {
+      console.error("Invalid signal data entered:", error);
+    }
+  };
 
   return (
     <div className="app-container">
@@ -178,17 +242,33 @@ catch (err) {
       </select>
 </div>
 
-      <div className="buttons-container">
-        <button onClick={startStreaming}>🎤 Start Audio</button>
+<div className="buttons-container">
+  <button onClick={startStreaming}>🎤 Start Audio</button>
        
-        <button onClick={connectToPeer}>🔗 Connect to Peer</button>
+  {/* <button onClick={connectToPeer}>🔗 Connect to Peer</button> */}
 
-        <button onClick={toggleFilter}>
-          {isFilterOn ? '🎚️ Turn Filter Off' : '🎛️ Turn Filter On'}
-        </button>
-      </div>
+  <button onClick={toggleFilter}>
+    {isFilterOn ? '🎚️ Turn Filter Off' : '🎛️ Turn Filter On'}
+  </button>
+</div>
+
+<div className="call-container">
+  <h3>Call:</h3>
+  <select onChange={(e) => connectToSelectedSignal(JSON.parse(e.target.value))}>
+    {signalData.length > 0 ? (
+      signalData.map((signal,i) =>(
+        <option key={i} value={JSON.stringify(signal)}>
+          Signal {i+1}
+        </option>
+      ))
+    ):(<option>No signals available</option>)}
+  </select>
+</div>
+
       <div className="audio-container">
+        <h3> Your Audio</h3>
         <audio ref={myVideoRef} autoPlay />
+        <h3> Peer Audio</h3>
         <audio ref={peerVideoRef} autoPlay />
       </div>
       <textarea
