@@ -267,9 +267,9 @@ catch (err) {
 
       <div className="audio-container">
         <h3> Your Audio</h3>
-        <audio ref={myVideoRef} autoPlay />
+        <audio ref={myVideoRef} controls autoPlay />
         <h3> Peer Audio</h3>
-        <audio ref={peerVideoRef} autoPlay />
+        <audio ref={peerVideoRef} controls autoPlay />
       </div>
       <textarea
         placeholder="Paste signal data here"
