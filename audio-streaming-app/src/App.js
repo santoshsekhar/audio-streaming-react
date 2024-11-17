@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import SimplePeer from 'simple-peer';
 import AV from './av';
@@ -6,19 +5,23 @@ import './styles.css'
 import io from 'socket.io-client';
 
 const socket = io('http://localhost:3001');  // Connect to your signaling server
+//const socket = io('https://hero-app-96-331c5f719536.herokuapp.com');
 
 
 function App() {
   const [stream, setStream] = useState(null);
-  const [isFilterOn, setIsFilterOn] = useState(false);
   const [signalData, setSignalData] = useState([]);
+  const [isFilterOn, setIsFilterOn] = useState(false);
+  
   const myVideoRef = useRef();
   const peerVideoRef = useRef();
   const peerRef = useRef();
   let audioContext, gainNode, filterNode;
   const [devices,setDevices] = useState({inputs:[], outputs:[]});
   const [selectedInputDevice, setSelectedInputDevice] = useState(null);
-  
+  const [isRecording, setIsRecording] = useState(true); // Track recording state
+  const [isAudioPlaying, setIsAudioPlaying] = useState(true); // Prevent fluctuating state
+
 
   const getDevices = async () =>{
     //Retrives and updates the state with available audio input and output devices
@@ -32,12 +35,18 @@ function App() {
   }
 
   const startStreaming = async () => {
+    if (peerRef.current) {
+      console.log('Peer connection already exists. Reusing...');
+      return;
+    }
+
     //Capture audio from the selected device while disabling video, with error handling
     try {
       const constraints = {
-        audio:{
-          deviceId: selectedInputDevice ? { exact: selectedInputDevice} : undefined
-        },
+        audio:
+          //deviceId: selectedInputDevice ? { exact: selectedInputDevice} : undefined
+        true
+        ,
         video: false
       };
 
@@ -68,6 +77,16 @@ function App() {
       initiator: true,
       trickle: false,
       stream: stream,
+      config:{
+        iceServers:[
+         // {urls: 'stun:global.stun.twilio.com:3478'},
+          {
+          //  urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+           // username: '',
+           // credential: ''
+          }
+        ]
+      }
     });
 
     peer.on('signal', (data) => { 
@@ -90,7 +109,7 @@ catch (err) {
 }
 };
 
- // Connect to peer using signaling server
+ //Connect to peer using signaling server
  const connectToPeer = () => {
   if (!peerRef.current) {
     console.error('No peer reference available');
@@ -99,24 +118,81 @@ catch (err) {
   console.log('Connecting to peer...');
 };
 
+
+useEffect(() => {
+  const handleSignal = (data) => {
+    console.log("Received signal data from server", data);
+    setSignalData(prevData => [...prevData,data]);
+    if (!data || (!data.sdp && !data.candidate)) {
+      console.warn("Invalid signal data received. Ignoring.");
+      return;
+    }
+
+    if (!peerRef.current) {
+      const peer = new SimplePeer({
+        initiator: false,
+        trickle: false,
+        stream: stream,
+        config:{
+          iceServers:[
+          //  {urls: 'stun:global.stun.twilio.com:3478'},
+            {
+             // urls: 'turn:global.turn.twilio.com:3478?transport=udp',
+             // username: '',
+              //credential: ''
+            }
+          ]
+        }
+      });
+      
+
+      peer.on('signal', (signal) => {
+        socket.emit('signal', signal);  // Send response signal back to server
+      });
+
+      peer.on('stream', (remoteStream) => {
+        console.log("Received remote stream");
+        peerVideoRef.current.srcObject = remoteStream;  // Display incoming audio
+      });
+
+      try {
+        peer.signal(data); // Use the received signal to connect
+      } catch (error) {
+        console.error("Error signaling the peer:", error);
+      }
+
+      peerRef.current = peer; // Store the peer reference
+    } else {
+      // If peer exists, ensure valid signaling
+      try {
+        peerRef.current.signal(data); // Add new signal data to the existing peer
+      } catch (error) {
+        console.error("Error adding signal data to existing peer:", error);
+      }
+    }
+  };
+
+  socket.on("signal", handleSignal); // Listen for signals from server
+
+  return () => {
+    socket.off("signal", handleSignal); // Clean up event listener
+  };
+}, [stream]);
   
 
-  useEffect(() =>{
-    console.log("registering socket event listener");
-    const handleSignal = (data) =>{
-      console.log("received signal data from server", data);
-      setSignalData(prevData => [...prevData,data]);
-    };
-    socket.on('signal', handleSignal);
-    return () =>{
-      console.log("cleaning up socket event listener");
-      socket.off('signal', handleSignal)
-    }
-    // socket.on('signal', (data) =>{
-    //   console.log('Received signa; data from server: ', data);
-    //   setSignalData(prevData => [...prevData,data]);
-    // })
-  },[]);
+  // useEffect(() =>{
+  //   console.log("registering socket event listener");
+  //   const handleSignal = (data) =>{
+  //     console.log("received signal data from server", data);
+  //     setSignalData(prevData => [...prevData,data]);
+  //   };
+  //   socket.on('signal', handleSignal);
+  //   return () =>{
+  //     console.log("cleaning up socket event listener");
+  //     socket.off('signal', handleSignal)
+  //   }
+    
+  // },[]);
 
   const connectToSelectedSignal = (signal) =>{
     console.log('connecting to selected signal...');
@@ -125,8 +201,8 @@ catch (err) {
     }else{
        // Create a new peer if none exists (for non-initiators)
       const peer = new SimplePeer({
-        initiator: false,
-        trickle:false,
+        initiator: true,
+        trickle:true,
       });
       peer.on('signal', (data) =>{
         socket.emit('signal', data);// Send signal data back to the server
@@ -159,7 +235,7 @@ catch (err) {
   };
   const changeOutputDevice =(deviceId) =>{
     //sets the audio output device to the selected one
-    const audioElement = myVideoRef.current;
+    const audioElement = peerVideoRef.current;
     if(audioElement.setSinkId){
       audioElement.setSinkId(deviceId)
       .then(() => console.log(`Output device set to ${deviceId}`))
@@ -174,38 +250,49 @@ catch (err) {
     getDevices();
   }, []);
 
-  //handle incoming singal data fromthe server and pass it to peer
-  // useEffect(() =>{
-  //   socket.on('signal',(data) =>{
-  //     console.log('Received singal data from server:', data);
-  //     if(peerRef.current){
-  //       peerRef.current.signal(data);
-  //     }
-  //   })
-  // },[]);
-//------------------
-  // const handleSignalData = (signalData) => {
-  //   //handles incoming signaling data for peer connection
-  //   try {
-  //     const parsedSignalData = JSON.parse(signalData);
-  //     con
-  //     peerRef.current.signal(parsedSignalData);
-  //   } catch (error) {
-  //     console.error("Invalid signal data format or error in signaling:", error);
-  //   }
-  // };
+  // Stop recording by stopping the media tracks
+  const stopRecording = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+      setIsRecording(false);
+      console.log('Recording stopped');
+    }
+  };
 
-  const handleSignalData = (signalString) => {
+  const resumeRecording = async () => {
     try {
-      const parsedSignal = JSON.parse(signalString);
-      console.log("Parsed signal data from textarea:", parsedSignal);
+      const constraints = { audio: true, video: false };
+      const newStream = await navigator.mediaDevices.getUserMedia(constraints);
+      setStream(newStream);
+      myVideoRef.current.srcObject = newStream;
+
       if (peerRef.current) {
-        peerRef.current.signal(parsedSignal);  // Use the signal to connect to the peer
-      } else {
-        console.error("No peer connection found");
+        peerRef.current.replaceTrack(
+          peerRef.current.streams[0].getAudioTracks()[0],
+          newStream.getAudioTracks()[0],
+          peerRef.current.streams[0]
+        );
       }
-    } catch (error) {
-      console.error("Invalid signal data entered:", error);
+
+      setIsRecording(true);
+      console.log('Recording resumed');
+    } catch (err) {
+      console.error('Error resuming media stream:', err);
+    }
+  };
+
+  // Handle audio control events
+  const handleAudioControl = (isPlaying) => {
+    if (isPlaying === isAudioPlaying) {
+      return; // Prevent redundant state changes
+    }
+    setIsAudioPlaying(isPlaying);
+
+    if (isPlaying) {
+      resumeRecording();
+    } else {
+      stopRecording();
     }
   };
 
@@ -267,15 +354,18 @@ catch (err) {
 
       <div className="audio-container">
         <h3> Your Audio</h3>
-        <audio ref={myVideoRef} controls autoPlay />
+        {/* <audio ref={myVideoRef} controls autoPlay /> */}
+        <audio
+          ref={myVideoRef}
+          controls
+          autoPlay
+          onPause={() => handleAudioControl(false)} // Stop recording when paused
+          onPlay={() => handleAudioControl(true)} // Resume recording when played
+        />
         <h3> Peer Audio</h3>
         <audio ref={peerVideoRef} controls autoPlay />
       </div>
-      <textarea
-        placeholder="Paste signal data here"
-        onChange={(e) => handleSignalData(e.target.value)}
-        className="signal-input"
-      />
+       
       {audioContext && <AV audioContext={audioContext} />}
     </div>
   );
